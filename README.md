@@ -1,5 +1,17 @@
 # CASCADE
 
-A chain reaction puzzle game built as a standalone HTML page.
+A standalone chain reaction puzzle game built with HTML, CSS, and JavaScript. Place sparks on the board, trigger cascading explosions, and clear targets with careful timing and limited moves.
 
-Open `index.html` in a browser to play locally.
+## Live Demo
+
+https://adixtyaz.github.io/cascade/
+
+## How to Use
+
+Open the demo in a browser and start a game. Click cells on the board to place sparks, create chain reactions, and use the available controls to restart or change the game mode.
+
+## Tech
+
+- HTML
+- CSS
+- JavaScript
