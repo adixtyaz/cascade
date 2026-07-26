@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Cascade — a chain reaction puzzle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#DBD3B8;
+    --surface:#F5F1E3;
+    --surface-2:#EAE3CC;
+    --ink:#15181D;
+    --ink-soft:#5B5646;
+    --accent:#FF5A36;
+    --accent-2:#FFC93C;
+    --danger:#E8483A;
+    --good:#3F9E56;
+    --c0:#FFC93C;
+    --c1:#FF6B4A;
+    --c2:#3EA7D9;
+    --c3:#68C258;
+    --c4:#A87FE0;
+    --cell-radius: 10px;
+    --bw: 3px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background-color:var(--bg);
+    background-image: radial-gradient(rgba(21,24,29,0.07) 1.5px, transparent 1.5px);
+    background-size: 24px 24px;
+    color:var(--ink);
+    font-family:'Space Grotesk',sans-serif;
+    min-height:100%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px 16px;
+  }
+  .page{
+    width:100%;
+    max-width:960px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:16px;
+  }
+  .wrap{
+    width:100%;
+    display:flex;
+    gap:28px;
+    align-items:flex-start;
+    justify-content:center;
+  }
+  @media (max-width:760px){
+    .wrap{ flex-direction:column; align-items:center; }
+  }
+
+  /* ---------- Board ---------- */
+  .board-col{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+
+  .brand{ text-align:center; }
+  .brand h1{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:46px;
+    letter-spacing:0.5px;
+    margin:0;
+    color:var(--ink);
+    text-shadow: 4px 4px 0 var(--accent-2);
+  }
+  .brand p{
+    margin:6px 0 0;
+    color:var(--ink-soft);
+    font-weight:600;
+    font-size:12.5px;
+    letter-spacing:1.4px;
+    text-transform:uppercase;
+  }
+
+  .marquee-wrap{
+    overflow:hidden;
+    width:min(92vw,480px);
+    border:2.5px solid var(--ink);
+    background:var(--ink);
+    border-radius:999px;
+    transform:rotate(-1.4deg);
+    margin-top:10px;
+  }
+  .marquee-track{
+    display:flex;
+    width:max-content;
+    animation: marqueeScroll 16s linear infinite;
+  }
+  .marquee-track span{
+    display:inline-block;
+    color:var(--surface);
+    font-weight:700;
+    font-size:11px;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:7px 16px;
+    white-space:nowrap;
+  }
+  .marquee-track span::after{ content:'\2726'; margin-left:16px; color:var(--accent-2); }
+  @keyframes marqueeScroll{
+    from{ transform:translateX(0); }
+    to{ transform:translateX(-50%); }
+  }
+
+  .board-shell{
+    position:relative;
+    width:min(88vw,520px);
+    aspect-ratio:1/1;
+    background:var(--surface);
+    border:var(--bw) solid var(--ink);
+    border-radius:22px;
+    box-shadow: 6px 6px 0 var(--ink);
+    overflow:hidden;
+    touch-action:manipulation;
+  }
+  .board{
+    position:absolute;
+    inset:12px;
+  }
+  svg.trace-layer{
+    position:absolute;
+    inset:0;
+    pointer-events:none;
+    overflow:visible;
+  }
+  .trace-line{
+    stroke-linecap:round;
+    opacity:0;
+    animation: traceFlash 340ms ease-out forwards;
+  }
+  @keyframes traceFlash{
+    0%{ opacity:0; stroke-width:2; }
+    35%{ opacity:0.95; stroke-width:4; }
+    100%{ opacity:0; stroke-width:2; }
+  }
+
+  .cell{
+    position:absolute;
+    border:2.5px solid var(--ink);
+    border-radius:var(--cell-radius);
+    cursor:pointer;
+    box-shadow:3px 3px 0 var(--ink);
+    transition: top .40s cubic-bezier(.22,.8,.25,1), left .40s cubic-bezier(.22,.8,.25,1), transform .14s ease, opacity .28s ease, box-shadow .14s ease;
+    outline:none;
+  }
+  .cell.no-anim{ transition:none; }
+  .cell:focus-visible{ box-shadow: 3px 3px 0 var(--ink), 0 0 0 3px var(--accent) !important; }
+  .cell .cell-inner{
+    position:absolute; top:12%; left:14%;
+    width:26%; height:22%;
+    border-radius:50%;
+    background:rgba(255,255,255,0.6);
+    pointer-events:none;
+  }
+  .cell:hover{ transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--ink); }
+  .cell:active{ transform:translate(2px,2px); box-shadow:0 0 0 var(--ink); }
+  .cell.shake{ animation: shake .32s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    20%{ transform:translateX(-5px); }
+    40%{ transform:translateX(4px); }
+    60%{ transform:translateX(-3px); }
+    80%{ transform:translateX(2px); }
+  }
+  .cell.spawn-in{ transform:scale(0.4); opacity:0; }
+  .cell.pop{
+    animation: pop 340ms cubic-bezier(.3,.6,.4,1) forwards;
+    z-index:5;
+  }
+  @keyframes pop{
+    0%{ transform:scale(1) rotate(0deg); opacity:1; }
+    40%{ transform:scale(1.24) rotate(-5deg); opacity:1; }
+    100%{ transform:scale(0.15) rotate(8deg); opacity:0; }
+  }
+
+  .c0{ background:var(--c0); }
+  .c1{ background:var(--c1); }
+  .c2{ background:var(--c2); }
+  .c3{ background:var(--c3); }
+  .c4{ background:var(--c4); }
+
+  .score-pop{
+    position:absolute;
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:19px;
+    color:var(--ink);
+    text-shadow: 2px 2px 0 var(--accent-2);
+    pointer-events:none;
+    animation: floatUp 760ms ease-out forwards;
+    z-index:8;
+  }
+  @keyframes floatUp{
+    0%{ transform:translateY(0) scale(0.8); opacity:0; }
+    15%{ opacity:1; transform:translateY(0) scale(1); }
+    100%{ transform:translateY(-34px) scale(1); opacity:0; }
+  }
+
+  .hint{ color:var(--ink-soft); font-size:12.5px; font-weight:500; text-align:center; max-width:420px; line-height:1.6; }
+  .hint b{ color:var(--ink); font-weight:700; }
+
+  /* ---------- Panel ---------- */
+  .panel{
+    width:230px;
+    flex-shrink:0;
+    background:var(--surface);
+    border:var(--bw) solid var(--ink);
+    border-radius:20px;
+    padding:20px;
+    box-shadow:6px 6px 0 var(--ink);
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+  @media (max-width:760px){
+    .panel{ width:min(88vw,520px); }
+  }
+  .stat-label{
+    font-size:11px;
+    letter-spacing:1.6px;
+    text-transform:uppercase;
+    font-weight:700;
+    color:var(--ink-soft);
+    margin:0 0 6px;
+  }
+  .stat-value{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:32px;
+    color:var(--ink);
+    line-height:1;
+  }
+  .stat-value.accent{ color:var(--accent); }
+  .divider{ height:0; border:none; border-top:2.5px dashed var(--ink); opacity:0.22; margin:0; }
+
+  .progress-track{
+    height:10px;
+    border-radius:7px;
+    background:var(--surface-2);
+    border:2px solid var(--ink);
+    overflow:hidden;
+    margin-top:9px;
+  }
+  .progress-fill{
+    height:100%;
+    background:var(--accent);
+    border-radius:5px;
+    transition:width .4s ease;
+    width:0%;
+  }
+  .progress-caption{
+    display:flex; justify-content:space-between;
+    font-family:'JetBrains Mono',monospace;
+    font-weight:700;
+    font-size:11px; color:var(--ink-soft); margin-top:6px;
+  }
+
+  .moves-dots{ display:flex; flex-wrap:wrap; gap:6px; margin-top:9px; }
+  .move-dot{
+    width:11px; height:11px; border-radius:3px;
+    background:var(--surface-2);
+    border:2px solid var(--ink);
+  }
+  .move-dot.filled{ background:var(--accent-2); }
+
+  .btn{
+    appearance:none;
+    border:2.5px solid var(--ink);
+    background:var(--surface);
+    color:var(--ink);
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    padding:11px 14px;
+    border-radius:12px;
+    cursor:pointer;
+    box-shadow:3px 3px 0 var(--ink);
+    transition:background .15s ease, transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{ background:var(--surface-2); transform:translate(-1px,-1px); box-shadow:4px 4px 0 var(--ink); }
+  .btn:active{ transform:translate(2px,2px); box-shadow:0 0 0 var(--ink); }
+  .btn:focus-visible{ box-shadow:3px 3px 0 var(--ink), 0 0 0 3px rgba(255,90,54,0.5); }
+  .btn.primary{
+    background:var(--accent);
+    color:var(--surface);
+  }
+  .btn.primary:hover{ background:#FF6E4C; }
+
+  /* ---------- Overlay ---------- */
+  .overlay{
+    position:fixed; inset:0;
+    background:rgba(21,24,29,0.55);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+  }
+  .overlay.show{ display:flex; }
+  .overlay-card{
+    background:var(--surface);
+    border:var(--bw) solid var(--ink);
+    border-radius:20px;
+    padding:34px 30px;
+    width:min(88vw,340px);
+    text-align:center;
+    box-shadow:8px 8px 0 var(--ink);
+  }
+  .overlay-card .eyebrow{
+    display:inline-block;
+    font-family:'Space Grotesk',sans-serif;
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:1.4px;
+    text-transform:uppercase;
+    color:var(--ink);
+    background:var(--accent-2);
+    border:2px solid var(--ink);
+    padding:5px 13px;
+    border-radius:999px;
+    transform:rotate(-3deg);
+    margin:0 0 16px;
+  }
+  .overlay-card h2{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    margin:0 0 14px;
+    font-size:26px;
+    color:var(--ink);
+  }
+  .overlay-card .big-num{
+    font-family:'Anton',sans-serif;
+    font-weight:400;
+    font-size:42px;
+    color:var(--accent);
+    margin-bottom:18px;
+  }
+  .overlay-card .btn{ width:100%; margin-top:6px; }
+
+  @media (prefers-reduced-motion: reduce){
+    .cell, .cell.pop, .score-pop, .trace-line, .marquee-track{ animation-duration:1ms !important; transition-duration:1ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="brand">
+    <h1>CASCADE</h1>
+    <p>a chain reaction puzzle</p>
+    <div class="marquee-wrap">
+      <div class="marquee-track">
+        <span>TAP TO CHAIN</span><span>MATCH & POP</span><span>SCORE BIG</span><span>REPEAT</span>
+        <span>TAP TO CHAIN</span><span>MATCH & POP</span><span>SCORE BIG</span><span>REPEAT</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+  <div class="board-col">
+    <div class="board-shell">
+      <div class="board" id="board"></div>
+      <svg class="trace-layer" id="traceLayer"></svg>
+    </div>
+    <p class="hint"><b>Tap a group</b> of two or more matching nodes to trigger a chain reaction. Bigger groups score exponentially more.</p>
+  </div>
+
+  <div class="panel">
+    <div>
+      <p class="stat-label">Level</p>
+      <div class="stat-value" id="levelVal">1</div>
+    </div>
+    <hr class="divider">
+    <div>
+      <p class="stat-label">Score</p>
+      <div class="stat-value accent" id="scoreVal">0</div>
+      <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="progress-caption"><span id="progressNow">0</span><span id="progressTarget">400</span></div>
+    </div>
+    <hr class="divider">
+    <div>
+      <p class="stat-label">Moves left</p>
+      <div class="stat-value" id="movesVal">15</div>
+      <div class="moves-dots" id="movesDots"></div>
+    </div>
+    <hr class="divider">
+    <button class="btn" id="restartBtn">Restart game</button>
+  </div>
+  </div>
+</div>
+
+<div class="overlay" id="levelOverlay">
+  <div class="overlay-card">
+    <p class="eyebrow">Target reached</p>
+    <h2>Level cleared</h2>
+    <div class="big-num" id="levelUpNum">2</div>
+    <button class="btn primary" id="continueBtn">Continue</button>
+  </div>
+</div>
+
+<div class="overlay" id="gameOverOverlay">
+  <div class="overlay-card">
+    <p class="eyebrow">Out of moves</p>
+    <h2>Reaction stopped</h2>
+    <div class="big-num" id="finalScoreNum">0</div>
+    <button class="btn primary" id="playAgainBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Config ----------
+  var ROWS = 7, COLS = 7;
+  var STAGGER = 55;      // ms between BFS layers popping
+  var POP_DURATION = 360;
+  var FALL_DURATION = 400;
+
+  var LEVELS = [
+    { target: 400,  moves: 15, colors: 4 },
+    { target: 1000, moves: 15, colors: 4 },
+    { target: 1800, moves: 14, colors: 5 },
+    { target: 2800, moves: 14, colors: 5 },
+    { target: 4000, moves: 13, colors: 5 }
+  ];
+  function levelConfig(levelNum){
+    // levelNum is 1-indexed
+    if(levelNum <= LEVELS.length) return LEVELS[levelNum-1];
+    var extra = levelNum - LEVELS.length;
+    var last = LEVELS[LEVELS.length-1];
+    return {
+      target: last.target + extra*1500 + Math.floor(extra*extra*60),
+      moves: Math.max(10, 13 - Math.floor(extra/2)),
+      colors: 5
+    };
+  }
+
+  // ---------- State ----------
+  var boardEl = document.getElementById('board');
+  var traceLayer = document.getElementById('traceLayer');
+  var cellSize = 0;
+  var grid = [];            // grid[row][col] = cellObj | null
+  var cellIdCounter = 0;
+  var animating = false;
+
+  var level = 1;
+  var score = 0;
+  var scoreAtLevelStart = 0;
+  var moves = 15;
+  var numColors = 4;
+
+  var levelVal = document.getElementById('levelVal');
+  var scoreVal = document.getElementById('scoreVal');
+  var movesVal = document.getElementById('movesVal');
+  var movesDots = document.getElementById('movesDots');
+  var progressFill = document.getElementById('progressFill');
+  var progressNow = document.getElementById('progressNow');
+  var progressTarget = document.getElementById('progressTarget');
+
+  var levelOverlay = document.getElementById('levelOverlay');
+  var gameOverOverlay = document.getElementById('gameOverOverlay');
+  var levelUpNum = document.getElementById('levelUpNum');
+  var finalScoreNum = document.getElementById('finalScoreNum');
+
+  // ---------- Helpers ----------
+  function randInt(n){ return Math.floor(Math.random()*n); }
+  function randomColorIdx(){ return randInt(numColors); }
+
+  function currentTarget(){ return levelConfig(level).target; }
+
+  function updateHUD(){
+    levelVal.textContent = level;
+    scoreVal.textContent = score;
+    movesVal.textContent = moves;
+
+    var target = currentTarget();
+    var pct = Math.min(100, Math.round((score/target)*100));
+    progressFill.style.width = pct + '%';
+    progressNow.textContent = score;
+    progressTarget.textContent = target;
+
+    var cfg = levelConfig(level);
+    movesDots.innerHTML = '';
+    for(var i=0;i<cfg.moves;i++){
+      var d = document.createElement('div');
+      d.className = 'move-dot' + (i < moves ? ' filled' : '');
+      movesDots.appendChild(d);
+    }
+  }
+
+  function computeCellSize(){
+    var rect = boardEl.getBoundingClientRect();
+    cellSize = rect.width / COLS;
+  }
+
+  function positionCell(cellObj, animate){
+    var el = cellObj.el;
+    if(!animate){ el.classList.add('no-anim'); }
+    el.style.left = (cellObj.col*cellSize) + 'px';
+    el.style.top = (cellObj.row*cellSize) + 'px';
+    el.style.width = cellSize + 'px';
+    el.style.height = cellSize + 'px';
+    if(!animate){
+      // force reflow then remove no-anim so future moves animate
+      void el.offsetWidth;
+      el.classList.remove('no-anim');
+    }
+  }
+
+  function createCellElement(cellObj, spawnAbove){
+    var el = document.createElement('div');
+    el.className = 'cell c' + cellObj.colorIdx;
+    el.tabIndex = 0;
+    el.setAttribute('role','button');
+    el.setAttribute('aria-label','node');
+    var inner = document.createElement('div');
+    inner.className = 'cell-inner';
+    el.appendChild(inner);
+    cellObj.el = el;
+
+    el.style.width = cellSize + 'px';
+    el.style.height = cellSize + 'px';
+    el.style.left = (cellObj.col*cellSize) + 'px';
+
+    if(spawnAbove){
+      el.classList.add('no-anim');
+      el.style.top = (-cellSize*(spawnAbove)) + 'px';
+    } else {
+      el.style.top = (cellObj.row*cellSize) + 'px';
+    }
+
+    el.addEventListener('click', function(){ handleClick(cellObj); });
+    el.addEventListener('keydown', function(e){
+      if(e.key === 'Enter' || e.key === ' '){
+        e.preventDefault();
+        handleClick(cellObj);
+      }
+    });
+
+    boardEl.appendChild(el);
+
+    if(spawnAbove){
+      void el.offsetWidth;
+      el.classList.remove('no-anim');
+      el.style.top = (cellObj.row*cellSize) + 'px';
+    }
+    return el;
+  }
+
+  // ---------- Board setup ----------
+  function buildFreshBoard(){
+    boardEl.innerHTML = '';
+    grid = [];
+    computeCellSize();
+    for(var r=0;r<ROWS;r++){
+      grid.push([]);
+      for(var c=0;c<COLS;c++){
+        var cellObj = { id: cellIdCounter++, row:r, col:c, colorIdx: randomColorIdx(), el:null };
+        grid[r].push(cellObj);
+        createCellElement(cellObj, ROWS - r + 2); // stagger-drop intro
+      }
+    }
+  }
+
+  // ---------- Group detection (BFS) ----------
+  function getGroupWithLayers(startR, startC){
+    var color = grid[startR][startC].colorIdx;
+    var visited = {};
+    var key = function(r,c){ return r+'_'+c; };
+    var queue = [{r:startR, c:startC, layer:0, parent:null}];
+    visited[key(startR,startC)] = true;
+    var result = [];
+    var head = 0;
+    while(head < queue.length){
+      var node = queue[head]; head++;
+      result.push(node);
+      var neighbors = [[node.r-1,node.c],[node.r+1,node.c],[node.r,node.c-1],[node.r,node.c+1]];
+      for(var i=0;i<neighbors.length;i++){
+        var nr = neighbors[i][0], nc = neighbors[i][1];
+        if(nr<0||nr>=ROWS||nc<0||nc>=COLS) continue;
+        var k = key(nr,nc);
+        if(visited[k]) continue;
+        if(!grid[nr][nc] || grid[nr][nc].colorIdx !== color) continue;
+        visited[k] = true;
+        queue.push({r:nr, c:nc, layer:node.layer+1, parent:node});
+      }
+    }
+    return result; // array of {r,c,layer,parent}
+  }
+
+  // ---------- Interaction ----------
+  function handleClick(cellObj){
+    if(animating) return;
+    var r = cellObj.row, c = cellObj.col;
+    var group = getGroupWithLayers(r,c);
+    if(group.length < 2){
+      cellObj.el.classList.remove('shake');
+      void cellObj.el.offsetWidth;
+      cellObj.el.classList.add('shake');
+      return;
+    }
+    triggerChain(group);
+  }
+
+  function centerOf(r,c){
+    return { x: (c+0.5)*cellSize, y: (r+0.5)*cellSize };
+  }
+
+  function drawTraceLine(parentNode, childNode, colorIdx, delay){
+    var p1 = centerOf(parentNode.r, parentNode.c);
+    var p2 = centerOf(childNode.r, childNode.c);
+    var ns = "http://www.w3.org/2000/svg";
+    var line = document.createElementNS(ns, 'line');
+    line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+    line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+    line.setAttribute('class','trace-line');
+    line.style.stroke = getComputedStyle(document.documentElement).getPropertyValue('--c'+colorIdx);
+    line.style.animationDelay = delay + 'ms';
+    traceLayer.appendChild(line);
+    setTimeout(function(){ line.remove(); }, delay + 400);
+  }
+
+  function showScorePop(r, c, amount){
+    var el = document.createElement('div');
+    el.className = 'score-pop';
+    el.textContent = '+' + amount;
+    var center = centerOf(r,c);
+    el.style.left = (center.x - 12) + 'px';
+    el.style.top = (center.y - 10) + 'px';
+    boardEl.appendChild(el);
+    setTimeout(function(){ el.remove(); }, 800);
+  }
+
+  function triggerChain(group){
+    animating = true;
+    moves--;
+
+    var colorIdx = grid[group[0].r][group[0].c].colorIdx;
+    var maxLayer = 0;
+    group.forEach(function(node){ if(node.layer > maxLayer) maxLayer = node.layer; });
+
+    var n = group.length;
+    var points = Math.round(n * (n-1) * 8);
+    score += points;
+
+    group.forEach(function(node){
+      var delay = node.layer * STAGGER;
+      var cellObj = grid[node.r][node.c];
+      setTimeout(function(){
+        if(cellObj.el){
+          cellObj.el.classList.add('pop');
+        }
+      }, delay);
+      if(node.parent){
+        drawTraceLine(node.parent, node, colorIdx, delay);
+      }
+    });
+
+    showScorePop(group[0].r, group[0].c, points);
+    updateHUD();
+
+    var totalDelay = maxLayer*STAGGER + POP_DURATION;
+    setTimeout(function(){
+      collapseAndRefill(group);
+      setTimeout(function(){
+        animating = false;
+        checkLevelState();
+      }, FALL_DURATION);
+    }, totalDelay);
+  }
+
+  // ---------- Collapse + refill ----------
+  function collapseAndRefill(group){
+    var removedByCol = {};
+    group.forEach(function(node){
+      if(!removedByCol[node.c]) removedByCol[node.c] = [];
+      removedByCol[node.c].push(node.r);
+    });
+
+    Object.keys(removedByCol).forEach(function(colStr){
+      var c = parseInt(colStr, 10);
+      var removedRows = {};
+      removedByCol[colStr].forEach(function(r){ removedRows[r] = true; });
+
+      // remove DOM for popped cells
+      removedByCol[colStr].forEach(function(r){
+        var cellObj = grid[r][c];
+        if(cellObj && cellObj.el){ cellObj.el.remove(); }
+      });
+
+      // gather survivors top-to-bottom
+      var survivors = [];
+      for(var r=0;r<ROWS;r++){
+        if(!removedRows[r]) survivors.push(grid[r][c]);
+      }
+      var numNew = ROWS - survivors.length;
+
+      // reposition survivors to bottom rows, animate fall
+      survivors.forEach(function(cellObj, idx){
+        var newRow = numNew + idx;
+        cellObj.row = newRow;
+        grid[newRow][c] = cellObj;
+        positionCell(cellObj, true);
+      });
+
+      // spawn new cells at top, animate falling in
+      for(var i=0;i<numNew;i++){
+        var newRow = i;
+        var cellObj = { id: cellIdCounter++, row:newRow, col:c, colorIdx: randomColorIdx(), el:null };
+        grid[newRow][c] = cellObj;
+        createCellElement(cellObj, numNew - i);
+      }
+    });
+  }
+
+  // ---------- Level / game state ----------
+  function checkLevelState(){
+    var target = currentTarget();
+    if(score >= target){
+      levelUpNum.textContent = level + 1;
+      levelOverlay.classList.add('show');
+      return;
+    }
+    if(moves <= 0){
+      finalScoreNum.textContent = score;
+      gameOverOverlay.classList.add('show');
+      return;
+    }
+    updateHUD();
+  }
+
+  function advanceLevel(){
+    levelOverlay.classList.remove('show');
+    level++;
+    var cfg = levelConfig(level);
+    moves = cfg.moves;
+    numColors = cfg.colors;
+    updateHUD();
+  }
+
+  function restartGame(){
+    gameOverOverlay.classList.remove('show');
+    levelOverlay.classList.remove('show');
+    level = 1;
+    score = 0;
+    var cfg = levelConfig(level);
+    moves = cfg.moves;
+    numColors = cfg.colors;
+    buildFreshBoard();
+    updateHUD();
+  }
+
+  // ---------- Resize ----------
+  var resizeTimer = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      computeCellSize();
+      for(var r=0;r<ROWS;r++){
+        for(var c=0;c<COLS;c++){
+          if(grid[r][c]) positionCell(grid[r][c], false);
+        }
+      }
+    }, 120);
+  });
+
+  // ---------- Wire up buttons ----------
+  document.getElementById('continueBtn').addEventListener('click', advanceLevel);
+  document.getElementById('playAgainBtn').addEventListener('click', restartGame);
+  document.getElementById('restartBtn').addEventListener('click', restartGame);
+
+  // ---------- Init ----------
+  var cfg0 = levelConfig(level);
+  moves = cfg0.moves;
+  numColors = cfg0.colors;
+  buildFreshBoard();
+  updateHUD();
+
+})();
+</script>
+</body>
+</html>
