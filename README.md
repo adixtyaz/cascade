@@ -4,7 +4,7 @@ A standalone chain reaction puzzle game built with HTML, CSS, and JavaScript. Pl
 
 ## Live Demo
 
-https://adixtyaz.github.io/cascade/
+https://aditya-vermax.github.io/cascade/
 
 ## How to Use
 
